@@ -11,6 +11,7 @@ void midiNotifyCallback(BLERemoteCharacteristic* pChar, uint8_t* data, size_t le
 
 BLEScan* pBLEScan;
 bool deviceFound = false;
+bool connectionRequested = false;
 
 // BLE data
 String deviceName = "";
@@ -20,31 +21,34 @@ String deviceUUID = "";
 
 BLERemoteCharacteristic* pMidiCharacteristic = nullptr;
 BLEAddress pendingAddress;
-bool connectionRequested = false;
 int retryCount = 0;
-const int MAX_RETRIES = 3;
+const int MAX_RETRIES = 5;
 
 class MyClientCallbacks : public BLEClientCallbacks {
     void onConnect(BLEClient* pClient) override{
+        if(pClient == nullptr){
+            Serial.println("onConnect: pClient is null, ignoring");
+            return;
+        }
         connectionState = CONNECTED;
-        Serial.println("connected to SMK25II");
+        newMidiData = true;
+        //Serial.println("connected to SMK25II");
 
         BLERemoteService* pMidiService = pClient->getService("03B80E5A-EDE8-4B33-A751-6CE34EC4C700");
         if(pMidiService){
             BLERemoteCharacteristic* pMidiChar = pMidiService->getCharacteristic("7772E5DB-3868-4112-A1A9-F2669D106BF3");
             if(pMidiChar){
                 pMidiChar->registerForNotify(midiNotifyCallback);
-                Serial.println("Subscribed to MIDI Nofifications");
+                Serial.println("Subscribed to SMK25II MIDI Nofifications");
             }
         }
-    
-    
     }   
 
     void onDisconnect(BLEClient* pClient) override{
         connectionState = SCANNING;
         deviceFound = false;
         Serial.println("disconnected - scanning again");
+        newMidiData = true;
     }
 };
 
@@ -62,7 +66,7 @@ public:
                 deviceUUID = String(advertisedDevice.getServiceUUID().toString().c_str());
             }
             deviceFound = true;
-            Serial.println("Found: " + deviceName + " UUID : " + deviceUUID     );
+            //Serial.println("Found: " + deviceName + " UUID : " + deviceUUID     );
 
             connectionRequested = true;        
         }
@@ -76,17 +80,15 @@ bool isMidiInstrument(String name){
 
 void updateBluetooth(){
     if(connectionState == SCANNING && connectionRequested ){
-        Serial.println("connection request sent");
         connectToDevice(deviceAddress);
         connectionRequested = false;
-    }
-
-    if(connectionState == FAILED){
+    }  
+    else if(connectionState == FAILED || connectionState == SCANNING ){
         retryCount++;
         if(retryCount <= MAX_RETRIES){
             Serial.println("Retry " + String(retryCount));
         }
-        delay(retryCount*1000);
+        delay(10000*retryCount);
         connectionState = SCANNING;
         pBLEScan->start(10);
     }
@@ -102,15 +104,18 @@ void initBluetooth() {
 
 void connectToDevice(String pendingAddress){
     connectionState = CONNECTING;
-    Serial.println("trying to connect " + pendingAddress);
+    //Serial.println("trying to connect " + pendingAddress);
 
     BLEClient* pClient = BLEDevice::createClient();
     pClient->setClientCallbacks(new MyClientCallbacks());
+        if(pClient->connect(pendingAddress)){
+            //Serial.println("connection successfull");
+        } else {
+            int reason = pClient->getConnId();
+            Serial.println("connection failed. getConnId: ");
+            Serial.println(reason);
 
-    if(pClient->connect(pendingAddress)){
-        Serial.println("connection successfull");
-    } else {
-        connectionState = FAILED;
-        Serial.println("connection failed");
-    }
+            connectionState = FAILED;
+            drawFailedScreen(reason);
+        }
 }
