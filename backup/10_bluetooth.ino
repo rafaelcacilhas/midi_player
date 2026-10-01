@@ -108,8 +108,8 @@ void connectToDevice(String pendingAddress){
 
     BLEClient* pClient = BLEDevice::createClient();
     pClient->setClientCallbacks(new MyClientCallbacks());
-        if(pClient->connect(pendingAddress)){
-            //Serial.println("connection successfull");
+        if(pClient->connect(BLEAddress(pendingAddress.c_str()))){
+            Serial.println("connection successfull");
         } else {
             int reason = pClient->getConnId();
             Serial.println("connection failed. getConnId: ");

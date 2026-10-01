@@ -47,10 +47,10 @@ void initSound() {
 }
 
 void updateSound() {
-    if (Serial.available()) {
-        char c = Serial.read();
-        if (c == 'm') noteActive = false;
-        if (c == 'u') noteActive = true;
+    if (!printed) {
+        Serial.printf("noteActive: %d, freq: %.2f, vol: %d\n", 
+                    noteActive, currentFrequency, masterVolume);
+        printed = true;
     }
     
     int16_t buffer[BUFFER_SIZE * 2];
@@ -61,7 +61,7 @@ void updateSound() {
         for (int i = 0; i < BUFFER_SIZE; i++) {
             int idx = (phaseAccum >> 16) % TABLE_SIZE;
             updateWaveTable();
-            int16_t sample = masterVolume*(1.0*currentVelocity/(1.0*MAX_VELOCITY))*soundTable[idx];
+            int16_t sample = (masterVolume / 127.0f)*(1.0*currentVelocity/(1.0*MAX_VELOCITY))*soundTable[idx];
             buffer[i * 2] = sample;
             buffer[i * 2 + 1] = sample;
             phaseAccum += phaseInc;
@@ -79,4 +79,6 @@ void updateWaveTable(){
         int16_t squareSample = squareTable[i];
         soundTable[i] = sineSample + (int16_t)((squareSample - sineSample)*waveMix);
     }
+    
+    updateWaveSprite(200, 60, soundTable);
 }
